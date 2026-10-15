@@ -58,6 +58,14 @@ static scalar_values ComputeScalarValues(f64 AbsDLat, f64 AbsDLon, f64 a, f64 R)
     
     return Result;
 }
+struct avx_values
+{
+    __m256d ALC0;
+    __m256d ALC3;
+    __m256d RangeA;
+    __m256d RangeR;
+};
+
 
 struct avx512_values
 {
@@ -67,6 +75,18 @@ struct avx512_values
     __m512d RangeR;
 };
 
+
+/*
+  scalar_values Result = {};
+    Result.LatLess180 = (AbsDLat < Deg180);
+    Result.LonLess180 = (AbsDLon < Deg180);
+    Result.NeedsTransform = (Half < a);
+    
+    Result.ALC0 = Result.LatLess180 ? 0 : NegPi;
+    Result.ALC3 = Result.LonLess180 ? 0 : NegPi;
+    Result.RangeA = Result.NeedsTransform ? (1.0 - a) : a;
+    Result.RangeR = Result.NeedsTransform ? (HalfPi - R) : R;
+*/
 static avx512_values ComputeAVX512Values(__m512d AbsDLat, __m512d AbsDLon, __m512d a, __m512d R)
 {
     __m512d Deg180 = _mm512_set1_pd(180.0);
@@ -90,6 +110,40 @@ static avx512_values ComputeAVX512Values(__m512d AbsDLat, __m512d AbsDLon, __m51
     
     return Result;
 }
+
+
+/*
+  scalar_values Result = {};
+    Result.LatLess180 = (AbsDLat < Deg180);
+    Result.LonLess180 = (AbsDLon < Deg180);
+    Result.NeedsTransform = (Half < a);
+    
+    Result.ALC0 = Result.LatLess180 ? 0 : NegPi;
+    Result.ALC3 = Result.LonLess180 ? 0 : NegPi;
+    Result.RangeA = Result.NeedsTransform ? (1.0 - a) : a;
+    Result.RangeR = Result.NeedsTransform ? (HalfPi - R) : R;
+*/
+static avx_values ComputeBlendVValues(__m256d AbsDLat, __m256d AbsDLon, __m256d a, __m256d R)
+{
+    avx_values Result = {};
+    
+    __m256d LatLess180 = _mm256_cmp_pd(AbsDLat, Deg180, _CMP_LT_OS);
+    __m256d LonLess180 = _mm256_cmp_pd(AbsDLon, Deg180, _CMP_LT_OS);
+#if 1
+    Result.ALC0 = _mm256_blendv_pd(NegPi, Zero, LatLess180);
+    Result.ALC3 = _mm256_blendv_pd(NegPi, Zero, LonLess180);
+#else
+    Result.ALC0 = _mm256_andnot_pd(LatLess180, NegPi);
+    Result.ALC3 = _mm256_andnot_pd(LonLess180, NegPi);
+#endif
+    
+    __m256d NeedsTransform = _mm256_cmp_pd(Half, a, _CMP_LT_OS);
+    Result.RangeA = _mm256_blendv_pd(a, _mm256_sub_pd(One, a), NeedsTransform);
+    Result.RangeR = _mm256_blendv_pd(R, _mm256_sub_pd(HalfPi, R), NeedsTransform);
+    
+    return Result;
+}
+
 
 static void PrintValue(char const *Label, f64 ScalarValue, f64 AVXValue)
 {

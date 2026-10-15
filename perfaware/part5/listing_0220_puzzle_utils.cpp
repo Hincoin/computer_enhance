@@ -1,13 +1,13 @@
 /* ========================================================================
 
    (C) Copyright 2026 by Molly Rocket, Inc., All Rights Reserved.
-   
+
    This software is provided 'as-is', without any express or implied
    warranty. In no event will the authors be held liable for any damages
    arising from the use of this software.
-   
+
    Please see https://computerenhance.com for more information
-   
+
    ======================================================================== */
 
 /* ========================================================================
@@ -52,7 +52,7 @@ inline void Section(char const *Mnemonic, char const *Description)
 
 inline void PrintSpacing(u32 CharCount)
 {
-    if(CharCount == SIMD_BYTE_COUNT/2)
+    if (CharCount == SIMD_BYTE_COUNT / 2)
     {
         printf(" ");
     }
@@ -61,38 +61,38 @@ inline void PrintSpacing(u32 CharCount)
 inline void PrintInner(u32 CharCount, char C)
 {
     PrintSpacing(CharCount);
-    
-    if(C == 0)
+
+    if (C == 0)
     {
         C = '0';
     }
-    
+
     printf("%c", C);
 }
 
 inline void Print(char const *Label, char const *Values)
 {
     printf("%s: ", Label);
-    
-    for(u32 Index = 0; Index < SIMD_BYTE_COUNT; ++Index)
+
+    for (u32 Index = 0; Index < SIMD_BYTE_COUNT; ++Index)
     {
         PrintInner(Index, Values[Index]);
     }
-    
+
     printf("  ");
-    
-    for(u32 RIndex = 0; RIndex < SIMD_BYTE_COUNT; ++RIndex)
-    {
-        PrintInner(RIndex, Values[(SIMD_BYTE_COUNT - 1) - RIndex]);
-    }
-    
+
+    // for(u32 RIndex = 0; RIndex < SIMD_BYTE_COUNT; ++RIndex)
+    // {
+    //     PrintInner(RIndex, Values[(SIMD_BYTE_COUNT - 1) - RIndex]);
+    // }
+
     printf("\n");
 }
 
 inline void Print(char const *Label, __m256 P)
 {
     char Values[SIMD_BYTE_COUNT];
-    
+
     _mm256_storeu_ps((f32 *)Values, P);
     Print(Label, Values);
 }
@@ -100,7 +100,7 @@ inline void Print(char const *Label, __m256 P)
 inline void Print(char const *Label, __m256i P)
 {
     char Values[SIMD_BYTE_COUNT];
-    
+
     _mm256_storeu_si256((__m256i *)Values, P);
     Print(Label, Values);
 }
@@ -108,7 +108,7 @@ inline void Print(char const *Label, __m256i P)
 inline void Print(char const *Label, __m256d P)
 {
     char Values[SIMD_BYTE_COUNT];
-    
+
     _mm256_storeu_pd((f64 *)Values, P);
     Print(Label, Values);
 }
@@ -116,24 +116,24 @@ inline void Print(char const *Label, __m256d P)
 inline u32 MatchError(u32 CharCount, u32 Index, char const *Target, char const *Compare)
 {
     u32 ErrorCount = 0;
-    
+
     PrintSpacing(CharCount);
-    
+
     char T = Target[Index];
-    if(T == '0')
+    if (T == '0')
     {
         T = 0;
     }
-    
+
     char C = ' ';
-    if(Compare[Index] != T)
+    if (Compare[Index] != T)
     {
         C = '_';
         ++ErrorCount;
     }
-    
+
     printf("%c", C);
-    
+
     return ErrorCount;
 }
 
@@ -141,30 +141,30 @@ inline void Match(char const *Label, m256 Value, char const *Target)
 {
     char Compare[SIMD_BYTE_COUNT];
     _mm256_storeu_pd((f64 *)Compare, Value.D);
-    
+
     u32 ErrorCount = 0;
-    
+
     printf("   ");
-    
-    for(u32 Index = 0; Index < SIMD_BYTE_COUNT; ++Index)
+
+    for (u32 Index = 0; Index < SIMD_BYTE_COUNT; ++Index)
     {
         ErrorCount += MatchError(Index, Index, Target, Compare);
     }
-    
+
     printf("  ");
-    
-    for(u32 RIndex = 0; RIndex < SIMD_BYTE_COUNT; ++RIndex)
+
+    for (u32 RIndex = 0; RIndex < SIMD_BYTE_COUNT; ++RIndex)
     {
         MatchError(RIndex, (SIMD_BYTE_COUNT - 1) - RIndex, Target, Compare);
     }
-    
+
     printf("\n");
-    
+
     Print("T", Target);
     Print("C", Compare);
-               
+
     printf("%s: ", Label);
-    if(ErrorCount)
+    if (ErrorCount)
     {
         printf("FAILED with %u errors :(\n\n", ErrorCount);
     }
@@ -172,7 +172,7 @@ inline void Match(char const *Label, m256 Value, char const *Target)
     {
         printf("Passed!\n");
     }
-               
+
     printf("\n");
 }
 
@@ -199,11 +199,14 @@ inline m256 M256From(__m256i Value)
 
 inline __m256 SolutionGoesHere(m256 = {}, m256 = {})
 {
-    __m256 Result = _mm256_loadu_ps((f32 *)"????????" "????????" "????????" "????????");
+    __m256 Result = _mm256_loadu_ps((f32 *)"????????"
+                                           "????????"
+                                           "????????"
+                                           "????????");
     return Result;
 }
 
 #define PRINT_SHUFFLE(Intrinsic, Shuffle, ShuffleParams, ...) \
-Print(#ShuffleParams, Intrinsic(__VA_ARGS__, Shuffle ShuffleParams))
+    Print(#ShuffleParams, Intrinsic(__VA_ARGS__, Shuffle ShuffleParams))
 
 #define PRINT_PACK(Intrinsic, ...) Print(#Intrinsic, Intrinsic(__VA_ARGS__))
