@@ -215,16 +215,20 @@ inline void CloseMemoryMappedFile(memory_mapped_file *MappedFile)
 #else
 
 #include <x86intrin.h>
+#include <sys/resource.h>
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <limits.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <pthread.h>
 
 struct os_platform
 {
     b32 Initialized;
     u64 CPUTimerFreq;
+    u64 LargePageSize;
 };
 static os_platform GlobalOSPlatform;
 
@@ -233,6 +237,67 @@ struct memory_mapped_file
     int File;
     buffer Memory;
 };
+
+
+enum overlapped_buffer_state
+{
+    Buffer_Unused,
+    Buffer_ReadCompleted,
+};
+struct overlapped_buffer
+{
+    buffer Value;
+    volatile u64 ReadSize;
+    volatile overlapped_buffer_state State;
+};
+
+struct threaded_io
+{
+    overlapped_buffer Buffers[2];
+    u64 TotalFileSize;
+    FILE *File;
+    b32 ReadError;
+};
+
+int IOThreadStatus;
+pthread_t IOThread;
+threaded_io ThreadedIO;
+static void* IOThreadRoutine(void* Parameter)
+{
+    threaded_io *ThreadedIO = (threaded_io *)Parameter;
+    
+    FILE *File = ThreadedIO->File;
+    u32 BufferIndex = 0;
+    u64 SizeRemaining = ThreadedIO->TotalFileSize;
+    while(SizeRemaining)
+    {
+        overlapped_buffer *Buffer = &ThreadedIO->Buffers[BufferIndex++ & 1];
+        u64 ReadSize = Buffer->Value.Count;
+        if(ReadSize > SizeRemaining)
+        {
+            ReadSize = SizeRemaining;
+        }
+        
+        while(Buffer->State != Buffer_Unused) {_mm_pause();}
+
+        EXCESSIVE_FENCE;
+        
+        if(fread(Buffer->Value.Data, ReadSize, 1, File) != 1)
+        {
+            ThreadedIO->ReadError = true;
+        }
+        
+        Buffer->ReadSize = ReadSize;
+        
+        EXCESSIVE_FENCE;
+        
+        Buffer->State = Buffer_ReadCompleted;
+            
+        SizeRemaining -= ReadSize;
+    }
+    
+    return 0;
+}
 
 static u64 GetOSTimerFreq(void)
 {
@@ -279,7 +344,7 @@ static b32 ReadOSRandomBytes(u64 Count, void *Dest)
     // and do multiple read()'s to make sure you filled the entire buffer.
 
     int DevRandom = open("/dev/urandom", O_RDONLY);
-    b32 Result = (read(DevRandom, Dest.Data, Dest.Count) == Count);
+    b32 Result = (read(DevRandom, Dest, Count) == Count);
     close(DevRandom);
     
     return Result;
@@ -290,7 +355,7 @@ static u64 GetFileSize(char *FileName)
     struct stat Stat;
     stat(FileName, &Stat);
     
-    return Stat.st_size
+    return Stat.st_size;
 }
 
 static void InitializeOSPlatform(void)
@@ -304,7 +369,14 @@ static void InitializeOSPlatform(void)
 
 static void *OSAllocate(size_t ByteCount)
 {
-    void *Result = mmap(0, ByteCount, PROT_READ|PROT_WRITE, MAP_ANONYMOUS, 0, 0);
+    uint32_t align = 0x1000;
+    size_t ByteCountOrig = ByteCount;
+    ByteCount = (ByteCount + (align-1)) & ~(align-1);
+    fprintf(stderr, "BC_orig=%lu, BC_aligned=%lu\n", ByteCountOrig, ByteCount);
+    
+    void *Result = mmap(NULL, ByteCount, PROT_READ|PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+    fprintf(stderr, "mmap Result=%p\n", Result);
+    perror("mmap failed:");
     return Result;
 }
 
@@ -315,7 +387,9 @@ static void OSFree(size_t ByteCount, void *BaseAddress)
 
 inline void CreateThread()
 {
-    IOThread = CreateThread(0, 0, IOThreadRoutine, &ThreadedIO, 0, 0);
+    pthread_attr_t      attr;
+    pthread_attr_init(&attr);
+    IOThread = pthread_create(&IOThread, &attr, IOThreadRoutine, &ThreadedIO);
 }
 
 inline memory_mapped_file OpenMemoryMappedFile(char const *FileName)
@@ -450,6 +524,8 @@ inline buffer ReadEntireFile(char *FileName)
         {
             if(fread(Result.Data, Result.Count, 1, File) != 1)
             {
+                perror("FAILED TO READ\n");
+                fprintf(stderr, "Result.Data=%p\n", Result.Data);
                 fprintf(stderr, "ERROR: Unable to read \"%s\".\n", FileName);
                 FreeBuffer(&Result);
             }

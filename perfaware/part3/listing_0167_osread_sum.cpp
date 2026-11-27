@@ -138,7 +138,7 @@ struct threaded_io
     b32 ReadError;
 };
 
-THREAD_ENTRY_POINT(IOThreadRoutine, Parameter)
+static void IOThreadRoutine(void* parameter)
 {
     threaded_io *ThreadedIO = (threaded_io *)Parameter;
     

@@ -279,7 +279,7 @@ static b32 ReadOSRandomBytes(u64 Count, void *Dest)
     // and do multiple read()'s to make sure you filled the entire buffer.
 
     int DevRandom = open("/dev/urandom", O_RDONLY);
-    b32 Result = (read(DevRandom, Dest.Data, Dest.Count) == Count);
+    b32 Result = (read(DevRandom, Dest, Count) == Count);
     close(DevRandom);
     
     return Result;

@@ -35,13 +35,17 @@ struct haversine_setup
     u64 ParsedByteCount;
     
     u64 PairCount;
-    haversine_pair *Pairs;
+    haversine_pair *Pairs; //offset 64
     f64 *Answers;
     
     f64 SumAnswer;
     
     b32 Valid;
 };
+
+template<size_t N>
+class SD;
+
 
 typedef f64 haversine_compute_func(haversine_setup Setup);
 typedef u64 haversine_verify_func(haversine_setup Setup);

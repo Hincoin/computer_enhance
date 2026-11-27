@@ -20,7 +20,7 @@
 #include <stdint.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <intrin.h>
+#include <immintrin.h>
 
 typedef uint8_t u8;
 typedef uint32_t u32;

@@ -243,7 +243,7 @@ inline void TestResult(math_tester *Tester, f64 Expected, f64 Output, char const
     ++Tester->ResultOffset;
 }
     
-inline int MathCmpGT(void *Context, const void *AIndex, const void *BIndex)
+inline int MathCmpGT(const void *Context, const void *AIndex,  void *BIndex)
 {
     math_tester *Tester = (math_tester *)Context;
     
@@ -285,7 +285,7 @@ inline void PrintResults(math_tester *Tester)
             Ranking[ResultIndex] = ResultIndex;
         }
         
-        qsort_s(Ranking, Tester->ResultCount, sizeof(Ranking[0]), MathCmpGT, Tester);
+        qsort_r(Ranking, Tester->ResultCount, sizeof(Ranking[0]), MathCmpGT, Tester);
         
         for(u32 ResultIndex = 0; ResultIndex < Tester->ResultCount; ++ResultIndex)
         {
